@@ -39,7 +39,4 @@ add_custom_command(TARGET modular_slang POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${SLANG_SDK_ROOT}/bin/gfx.dll"
         "$<TARGET_FILE_DIR:modular_slang>/gfx.dll"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/test.slang"
-        "$<TARGET_FILE_DIR:modular_slang>/test.slang"
 )
