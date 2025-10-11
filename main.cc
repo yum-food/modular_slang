@@ -452,29 +452,7 @@ int main(int argc, char** argv)
     rawOutputPath.replace_extension(".raw.hlsl");
     writeTextFile(rawOutputPath, hlslSource);
 
-    // Remove [shader("dispatch")]export lines
     std::string finalHlsl = hlslSource;
-    const std::string shaderExportToken = "[shader(\"dispatch\")]export";
-    std::size_t pos = 0;
-    while ((pos = finalHlsl.find(shaderExportToken, pos)) != std::string::npos)
-    {
-        std::size_t lineEnd = pos + shaderExportToken.size();
-        // Skip optional whitespace and newline
-        while (lineEnd < finalHlsl.size() &&
-               (finalHlsl[lineEnd] == ' ' || finalHlsl[lineEnd] == '\t'))
-        {
-            ++lineEnd;
-        }
-        if (lineEnd < finalHlsl.size() && finalHlsl[lineEnd] == '\r')
-        {
-            ++lineEnd;
-        }
-        if (lineEnd < finalHlsl.size() && finalHlsl[lineEnd] == '\n')
-        {
-            ++lineEnd;
-        }
-        finalHlsl.erase(pos, lineEnd - pos);
-    }
 
     IncludeGuardInfo includeGuard = detectIncludeGuard(modulePath);
     if (includeGuard.present)

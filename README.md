@@ -6,13 +6,9 @@ require an entrypoint.
 basics and gotchas
 
 - all functions marked `public` are exported as entrypoints.
-  - this causes slang to put their arguments in a cbuffer. we post-process them
-    to fix this.
-- any autodiff function calls within a module must *not* be to `public` APIs.
-  - this is a consequence of the prior point. any public API is seen by slang
-    as an "entrypoint" which accepts a cbuffer argument. the autodiff logic
-    does not handle this edge case, so it tries to pass arguments to a function
-    which takes no arguments.
+- we use a custom build of slang which lets entrypoints use regular arguments
+  instead of cbuffers / structs.
+- it should "just work" for simple math kernels
 
 build instructions
 
