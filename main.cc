@@ -465,6 +465,35 @@ absl::StatusOr<std::string> collectGeneratedHlsl(ICompileRequest* compileRequest
       static_cast<std::size_t>(targetCodeBlob->getBufferSize()));
 }
 
+std::string removeNvapiInclude(std::string hlslSource) {
+  const std::string guardToken = "#ifdef SLANG_HLSL_ENABLE_NVAPI";
+  const std::string endifToken = "#endif";
+
+  std::size_t searchPos = 0;
+  while (true) {
+    const std::size_t blockStart = hlslSource.find(guardToken, searchPos);
+    if (blockStart == std::string::npos) {
+      break;
+    }
+
+    std::size_t blockEnd = hlslSource.find(endifToken, blockStart);
+    if (blockEnd == std::string::npos) {
+      break;
+    }
+    blockEnd += endifToken.size();
+
+    while (blockEnd < hlslSource.size() &&
+        (hlslSource[blockEnd] == '\r' || hlslSource[blockEnd] == '\n')) {
+      ++blockEnd;
+    }
+
+    hlslSource.erase(blockStart, blockEnd - blockStart);
+    searchPos = blockStart;
+  }
+
+  return hlslSource;
+}
+
 std::string applyIncludeGuard(const std::string& hlslSource, const IncludeGuardInfo& includeGuard) {
   if (!includeGuard.present) {
     return hlslSource;
@@ -562,6 +591,7 @@ absl::Status run(int argc, char** argv) {
     return hlslSourceOr.status();
   }
   std::string hlslSource = std::move(hlslSourceOr).value();
+  std::string filteredHlsl = removeNvapiInclude(hlslSource);
 
   fs::path rawOutputPath = request.outputPath;
   rawOutputPath.replace_extension(".raw.hlsl");
@@ -571,7 +601,7 @@ absl::Status run(int argc, char** argv) {
   }
 
   IncludeGuardInfo includeGuard = detectIncludeGuard(request.modulePath);
-  std::string finalHlsl = applyIncludeGuard(hlslSource, includeGuard);
+  std::string finalHlsl = applyIncludeGuard(filteredHlsl, includeGuard);
   if (absl::Status status = writeTextFile(request.outputPath, finalHlsl);
       !status.ok()) {
     return status;
