@@ -16,8 +16,8 @@ mkdir ./dist
 cp -Recurse build/bin/Release/* dist
 cp -Recurse ./Scripts ./dist/
 
-if (Test-Path -Path ../Assets/yum_food/3ner/Modular_Slang) {
-  rm -Recurse ../Assets/yum_food/3ner/Modular_Slang
+if (Test-Path -Path ../Assets/yum_food/Modular_Slang) {
+  rm -Recurse ../Assets/yum_food/Modular_Slang
 }
-cp -Recurse ./dist ../Assets/yum_food/3ner/Modular_Slang/
+cp -Recurse ./dist ../Assets/yum_food/Modular_Slang/
 
