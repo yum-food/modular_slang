@@ -317,7 +317,7 @@ std::vector<CompilerOptionEntry> makeCommonOptions() {
   addCompilerOption(options, CompilerOptionName::NoHLSLBinding);
   addCompilerOption(options, CompilerOptionName::NoMangle);
   addCompilerOption(options, CompilerOptionName::NoHLSLPackConstantBufferElements);
-  addCompilerOption(options, CompilerOptionName::NoEntryPointUniformParamTransform);
+  addCompilerOption(options, CompilerOptionName::PlainFunctionEntryPoints);
   return options;
 }
 

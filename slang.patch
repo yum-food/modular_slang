@@ -1,0 +1,85 @@
+commit 0f5a49961975089977de7207c063cc58df04028e
+Author: yum <yum.food.vr@gmail.com>
+Date:   Sat Oct 11 13:34:03 2025 -0700
+
+    Optionally disable entry point param cbuffer transform
+
+diff --git a/include/slang.h b/include/slang.h
+index a3ed2112a..abb1c967e 100644
+--- a/include/slang.h
++++ b/include/slang.h
+@@ -1004,6 +1004,7 @@ typedef uint32_t SlangSizeT;
+         NoMangle,
+         NoHLSLBinding,
+         NoHLSLPackConstantBufferElements,
++        PlainFunctionEntryPoints,
+         ValidateUniformity,
+         AllowGLSL,
+         EnableExperimentalPasses,
+diff --git a/source/slang/slang-emit-hlsl.cpp b/source/slang/slang-emit-hlsl.cpp
+index a5d634ebf..bd12335da 100644
+--- a/source/slang/slang-emit-hlsl.cpp
++++ b/source/slang/slang-emit-hlsl.cpp
+@@ -442,6 +442,11 @@ void HLSLSourceEmitter::emitEntryPointAttributesImpl(
+     {
+         if (profile.getVersion() >= ProfileVersion::DX_6_1)
+         {
++            if (m_codeGenContext->getTargetProgram()->getOptionSet().getBoolOption(
++                    CompilerOptionName::PlainFunctionEntryPoints))
++            {
++                return;
++            }
+             char const* stageName = getStageName(stage);
+             if (stageName)
+             {
+diff --git a/source/slang/slang-emit.cpp b/source/slang/slang-emit.cpp
+index 1bd1f8b5c..0a64199ed 100644
+--- a/source/slang/slang-emit.cpp
++++ b/source/slang/slang-emit.cpp
+@@ -829,6 +829,7 @@ Result linkAndOptimizeIR(
+     // TODO: We should skip this step for CUDA targets.
+     // (NM): we actually do need to do this step for OptiX based CUDA targets
+     //
++    if (!targetProgram->getOptionSet().getBoolOption(CompilerOptionName::PlainFunctionEntryPoints))
+     {
+         CollectEntryPointUniformParamsOptions passOptions;
+         passOptions.targetReq = targetRequest;
+@@ -861,10 +862,13 @@ Result linkAndOptimizeIR(
+     switch (target)
+     {
+     default:
+-        moveEntryPointUniformParamsToGlobalScope(irModule);
++        if (!targetProgram->getOptionSet().getBoolOption(CompilerOptionName::PlainFunctionEntryPoints))
++        {
++            moveEntryPointUniformParamsToGlobalScope(irModule);
+ #if 0
+-        dumpIRIfEnabled(codeGenContext, irModule, "ENTRY POINT UNIFORMS MOVED");
++            dumpIRIfEnabled(codeGenContext, irModule, "ENTRY POINT UNIFORMS MOVED");
+ #endif
++        }
+         validateIRModuleIfEnabled(codeGenContext, irModule);
+         break;
+     case CodeGenTarget::HostCPPSource:
+diff --git a/source/slang/slang-options.cpp b/source/slang/slang-options.cpp
+index fa185d54a..8320e4512 100644
+--- a/source/slang/slang-options.cpp
++++ b/source/slang/slang-options.cpp
+@@ -934,6 +934,10 @@ void initCommandOptions(CommandOptions& options)
+          "-embed-downstream-ir",
+          nullptr,
+          "Embed downstream IR into emitted slang IR"},
++        {OptionKind::PlainFunctionEntryPoints,
++         "-plain-function-entry-points",
++         nullptr,
++         "Keep entry points as plain functions without moving uniform parameters into global constant buffers"},
+     };
+     _addOptions(makeConstArrayView(experimentalOpts), options);
+ 
+@@ -2279,6 +2283,7 @@ SlangResult OptionsParser::_parse(int argc, char const* const* argv)
+         case OptionKind::IncompleteLibrary:
+         case OptionKind::NoHLSLBinding:
+         case OptionKind::NoHLSLPackConstantBufferElements:
++        case OptionKind::PlainFunctionEntryPoints:
+         case OptionKind::LoopInversion:
+         case OptionKind::UnscopedEnum:
+         case OptionKind::PreserveParameters:
