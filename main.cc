@@ -10,6 +10,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -398,9 +399,12 @@ absl::StatusOr<ComPtr<ICompileRequest>> createCompileRequest(
     const TargetDesc& targetDesc,
     const std::vector<FunctionInfo>& functions) {
   ComPtr<ICompileRequest> compileRequest;
-  ABSL_RETURN_IF_ERROR(checkSlangResult(
-      "ISession::createCompileRequest",
-      session->createCompileRequest(compileRequest.writeRef())));
+  if (absl::Status status = checkSlangResult(
+          "ISession::createCompileRequest",
+          session->createCompileRequest(compileRequest.writeRef()));
+      !status.ok()) {
+    return status;
+  }
 
   compileRequest->setCodeGenTarget(SLANG_HLSL);
   compileRequest->setTargetProfile(0, targetDesc.profile);
@@ -436,12 +440,19 @@ absl::StatusOr<std::string> collectGeneratedHlsl(ICompileRequest* compileRequest
   SlangResult compileResult = compileRequest->compile();
   ComPtr<IBlob> diagnostics;
   compileRequest->getDiagnosticOutputBlob(diagnostics.writeRef());
-  ABSL_RETURN_IF_ERROR(checkSlangResult("ICompileRequest::compile", compileResult, diagnostics.get()));
+  if (absl::Status status = checkSlangResult(
+          "ICompileRequest::compile", compileResult, diagnostics.get());
+      !status.ok()) {
+    return status;
+  }
 
   ComPtr<IBlob> targetCodeBlob;
-  ABSL_RETURN_IF_ERROR(checkSlangResult(
-      "ICompileRequest::getTargetCodeBlob",
-      compileRequest->getTargetCodeBlob(0, targetCodeBlob.writeRef())));
+  if (absl::Status status = checkSlangResult(
+          "ICompileRequest::getTargetCodeBlob",
+          compileRequest->getTargetCodeBlob(0, targetCodeBlob.writeRef()));
+      !status.ok()) {
+    return status;
+  }
 
   if (!targetCodeBlob || targetCodeBlob->getBufferSize() == 0) {
     std::ostringstream msg;
@@ -491,12 +502,19 @@ std::string applyIncludeGuard(const std::string& hlslSource, const IncludeGuardI
 }
 
 absl::Status run(int argc, char** argv) {
-  ABSL_ASSIGN_OR_RETURN(ModuleRequest request, parseModuleRequest(argc, argv));
+  absl::StatusOr<ModuleRequest> requestOr = parseModuleRequest(argc, argv);
+  if (!requestOr.ok()) {
+    return requestOr.status();
+  }
+  ModuleRequest request = std::move(requestOr).value();
 
   ComPtr<IGlobalSession> globalSession;
-  ABSL_RETURN_IF_ERROR(checkSlangResult(
-      "createGlobalSession",
-      createGlobalSession(globalSession.writeRef())));
+  if (absl::Status status = checkSlangResult(
+          "createGlobalSession",
+          createGlobalSession(globalSession.writeRef()));
+      !status.ok()) {
+    return status;
+  }
 
   auto commonOptions = makeCommonOptions();
 
@@ -510,29 +528,54 @@ absl::Status run(int argc, char** argv) {
   configureSessionDesc(targetDesc, request, sessionOptions, searchPaths, sessionDesc);
 
   ComPtr<ISession> session;
-  ABSL_RETURN_IF_ERROR(checkSlangResult(
-      "IGlobalSession::createSession",
-      globalSession->createSession(sessionDesc, session.writeRef())));
+  if (absl::Status status = checkSlangResult(
+          "IGlobalSession::createSession",
+          globalSession->createSession(sessionDesc, session.writeRef()));
+      !status.ok()) {
+    return status;
+  }
 
-  ABSL_ASSIGN_OR_RETURN(ComPtr<IModule> libraryModule,
-      loadSlangModule(session.get(), request.moduleName));
+  absl::StatusOr<ComPtr<IModule>> libraryModuleOr =
+      loadSlangModule(session.get(), request.moduleName);
+  if (!libraryModuleOr.ok()) {
+    return libraryModuleOr.status();
+  }
+  ComPtr<IModule> libraryModule = std::move(libraryModuleOr).value();
 
-  ABSL_ASSIGN_OR_RETURN(std::vector<FunctionInfo> functions,
-      collectEntryPoints(libraryModule.get(), request.moduleName));
+  absl::StatusOr<std::vector<FunctionInfo>> functionsOr =
+      collectEntryPoints(libraryModule.get(), request.moduleName);
+  if (!functionsOr.ok()) {
+    return functionsOr.status();
+  }
+  std::vector<FunctionInfo> functions = std::move(functionsOr).value();
 
-  ABSL_ASSIGN_OR_RETURN(ComPtr<ICompileRequest> compileRequest,
-      createCompileRequest(session.get(), request, targetDesc, functions));
+  absl::StatusOr<ComPtr<ICompileRequest>> compileRequestOr =
+      createCompileRequest(session.get(), request, targetDesc, functions);
+  if (!compileRequestOr.ok()) {
+    return compileRequestOr.status();
+  }
+  ComPtr<ICompileRequest> compileRequest = std::move(compileRequestOr).value();
 
-  ABSL_ASSIGN_OR_RETURN(std::string hlslSource,
-      collectGeneratedHlsl(compileRequest.get(), request.moduleName));
+  absl::StatusOr<std::string> hlslSourceOr =
+      collectGeneratedHlsl(compileRequest.get(), request.moduleName);
+  if (!hlslSourceOr.ok()) {
+    return hlslSourceOr.status();
+  }
+  std::string hlslSource = std::move(hlslSourceOr).value();
 
   fs::path rawOutputPath = request.outputPath;
   rawOutputPath.replace_extension(".raw.hlsl");
-  ABSL_RETURN_IF_ERROR(writeTextFile(rawOutputPath, hlslSource));
+  if (absl::Status status = writeTextFile(rawOutputPath, hlslSource);
+      !status.ok()) {
+    return status;
+  }
 
   IncludeGuardInfo includeGuard = detectIncludeGuard(request.modulePath);
   std::string finalHlsl = applyIncludeGuard(hlslSource, includeGuard);
-  ABSL_RETURN_IF_ERROR(writeTextFile(request.outputPath, finalHlsl));
+  if (absl::Status status = writeTextFile(request.outputPath, finalHlsl);
+      !status.ok()) {
+    return status;
+  }
 
   std::cerr << "Generated HLSL written to " << request.outputPath << std::endl;
   return absl::OkStatus();
