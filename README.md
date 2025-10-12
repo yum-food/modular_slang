@@ -21,7 +21,7 @@ build instructions
 ```bash
 git clone https://github.com/shader-slang/slang
 cd slang
-git checkout 1a193d6e5cdcdab05aa291d725c3b1c1260b8762
+git checkout 8f499fbe9baf68ef880da2ffe4812fbed1e5c1fa
 patch -p1 <../slang.patch
 git submodule update --init --recursive -j 32
 # wait, the previous command takes a while
