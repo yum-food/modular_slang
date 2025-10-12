@@ -1,7 +1,7 @@
 ## modular slang
 
-the idea here is just to make something like slangc.exe, but which doesn't
-require an entrypoint.
+the idea here is just to make something like slangc.exe, but which treats
+entrypoints like regular functions.
 
 basics and gotchas
 
@@ -9,6 +9,12 @@ basics and gotchas
 - we use a custom build of slang which lets entrypoints use regular arguments
   instead of cbuffers / structs.
 - it should "just work" for simple math kernels
+
+usage
+
+- import unitypackage
+- right click .slang file, select 'Translate to HLSL'
+- import the generated .hlsl in your shader
 
 build instructions
 
