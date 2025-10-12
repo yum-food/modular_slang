@@ -14,6 +14,7 @@ usage
 
 - import unitypackage
 - right click .slang file, select 'Translate to HLSL'
+  - it should also auto recompile whenever you tab back into unity
 - import the generated .hlsl in your shader
 
 build instructions
