@@ -5,10 +5,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
 set(SLANG_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/slang/build/slang-2025.18.2-windows-x86_64")
 if(NOT EXISTS "${SLANG_SDK_ROOT}")
     message(FATAL_ERROR "Expected Slang SDK directory at ${SLANG_SDK_ROOT}")
 endif()
+
+FetchContent_Declare(
+    abseil
+    URL https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.1.zip
+)
+FetchContent_MakeAvailable(abseil)
 
 add_executable(modular_slang main.cc)
 set_target_properties(modular_slang PROPERTIES
@@ -21,6 +29,8 @@ target_include_directories(modular_slang PRIVATE
 
 target_link_libraries(modular_slang PRIVATE
     "${SLANG_SDK_ROOT}/lib/slang.lib"
+    absl::status
+    absl::statusor
 )
 
 if(MSVC)
