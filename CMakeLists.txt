@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 
-set(SLANG_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/slang/build/slang-2025.18.2-windows-x86_64")
+set(SLANG_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/slang/build/Release")
 if(NOT EXISTS "${SLANG_SDK_ROOT}")
     message(FATAL_ERROR "Expected Slang SDK directory at ${SLANG_SDK_ROOT}")
 endif()
