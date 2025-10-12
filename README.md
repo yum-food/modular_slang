@@ -8,7 +8,9 @@ basics and gotchas
 - all functions marked `public` are exported as entrypoints.
 - we use a custom build of slang which lets entrypoints use regular arguments
   instead of cbuffers / structs.
-- it should "just work" for simple math kernels
+- it is intended for use with simple math kernels
+  - see `example.slang` for an example. you'd `#include example.hlsl` in the
+    rest of some shader and call the public APIs.
 
 usage
 
