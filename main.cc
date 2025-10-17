@@ -3,6 +3,7 @@
 #include <cctype>
 #include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -164,9 +165,131 @@ bool isTopLevelFunction(DeclReflection* functionDecl) {
   return false;
 }
 
+
+std::unordered_set<std::string> findPublicFunctionNames(const fs::path& sourcePath) {
+  std::unordered_set<std::string> names;
+
+  std::ifstream input(sourcePath, std::ios::binary);
+  if (!input) {
+    return names;
+  }
+
+  std::string source((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const std::size_t length = source.size();
+
+  std::size_t index = 0;
+  bool publicPending = false;
+  std::string candidate;
+  int templateDepth = 0;
+
+  while (index < length) {
+    char c = source[index];
+
+    if (c == '/' && index + 1 < length) {
+      char next = source[index + 1];
+      if (next == '/') {
+        index += 2;
+        while (index < length && source[index] != '\n') {
+          ++index;
+        }
+        continue;
+      }
+      if (next == '*') {
+        index += 2;
+        while (index + 1 < length && !(source[index] == '*' && source[index + 1] == '/')) {
+          ++index;
+        }
+        if (index + 1 < length) {
+          index += 2;
+        }
+        continue;
+      }
+    }
+
+    if (c == '"' || c == '\'') {
+      char quote = c;
+      ++index;
+      while (index < length) {
+        char current = source[index];
+        if (current == '\\') {
+          index += 2;
+          continue;
+        }
+        if (current == quote) {
+          ++index;
+          break;
+        }
+        ++index;
+      }
+      continue;
+    }
+
+    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
+      std::size_t startToken = index;
+      ++index;
+      while (index < length) {
+        char ch = source[index];
+        if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_') {
+          ++index;
+        } else {
+          break;
+        }
+      }
+      std::string token = source.substr(startToken, index - startToken);
+      if (token == "public") {
+        publicPending = true;
+        candidate.clear();
+        templateDepth = 0;
+      } else if (publicPending && templateDepth == 0) {
+        candidate = token;
+      }
+      continue;
+    }
+
+    if (publicPending) {
+      if (c == '<') {
+        ++templateDepth;
+        ++index;
+        continue;
+      }
+      if (c == '>') {
+        if (templateDepth > 0) {
+          --templateDepth;
+        }
+        ++index;
+        continue;
+      }
+      if (c == '(') {
+        if (!candidate.empty() && templateDepth == 0) {
+          names.insert(candidate);
+        }
+        publicPending = false;
+        candidate.clear();
+        templateDepth = 0;
+        ++index;
+        continue;
+      }
+      if (c == ';' || c == '{' || c == '}') {
+        publicPending = false;
+        candidate.clear();
+        templateDepth = 0;
+        ++index;
+        continue;
+      }
+    }
+
+    ++index;
+  }
+
+  return names;
+}
+
+
+
 // Recursively gather function declarations defined in the supplied Slang module.
 void collectFunctionInfos(
     DeclReflection* decl,
+    const std::unordered_set<std::string>& publicFunctions,
     std::vector<FunctionInfo>& functions,
     std::unordered_set<std::string>& seenNames) {
   if (!decl) {
@@ -179,11 +302,9 @@ void collectFunctionInfos(
   case Kind::Func:
     if (auto* functionReflection = decl->asFunction()) {
       if (const char* name = functionReflection->getName()) {
-        // Heuristic: functions that don't start with underscore are considered public
-        // (Slang convention: private/internal functions typically start with _)
-        bool isPublic = name[0] != '_';
+        bool isPublic = publicFunctions.find(name) != publicFunctions.end();
 
-        if (*name && seenNames.insert(name).second && isTopLevelFunction(decl) && isPublic) {
+        if (*name && isPublic && seenNames.insert(name).second && isTopLevelFunction(decl)) {
           std::cerr << "Discovered entry point: " << name << std::endl;
           functions.push_back({name});
         }
@@ -194,6 +315,7 @@ void collectFunctionInfos(
     if (auto* genericDecl = decl->asGeneric()) {
       collectFunctionInfos(
           genericDecl->getInnerDecl(),
+          publicFunctions,
           functions,
           seenNames);
     }
@@ -203,9 +325,10 @@ void collectFunctionInfos(
   }
 
   for (auto* child : decl->getChildren()) {
-    collectFunctionInfos(child, functions, seenNames);
+    collectFunctionInfos(child, publicFunctions, functions, seenNames);
   }
 }
+
 
 IncludeGuardInfo detectIncludeGuard(const fs::path& sourcePath) {
   IncludeGuardInfo info;
@@ -370,23 +493,31 @@ absl::StatusOr<ComPtr<IModule>> loadSlangModule(ISession* session, const std::st
 
 absl::StatusOr<std::vector<FunctionInfo>> collectEntryPoints(
     IModule* module,
-    const std::string& moduleName) {
+    const std::string& moduleName,
+    const fs::path& sourcePath) {
   std::vector<FunctionInfo> functions;
   std::unordered_set<std::string> seenNames;
+
+  std::unordered_set<std::string> publicFunctions = findPublicFunctionNames(sourcePath);
+  if (publicFunctions.empty()) {
+    std::ostringstream msg;
+    msg << "No public functions found in " << sourcePath.string() << '.';
+    return absl::NotFoundError(msg.str());
+  }
 
   DeclReflection* moduleReflection = module ? module->getModuleReflection() : nullptr;
   if (!moduleReflection) {
     std::ostringstream msg;
     msg << "Failed to retrieve reflection data for module '"
-    << moduleName << "'.";
+        << moduleName << "'.";
     return absl::InternalError(msg.str());
   }
 
-  collectFunctionInfos(moduleReflection, functions, seenNames);
+  collectFunctionInfos(moduleReflection, publicFunctions, functions, seenNames);
 
   if (functions.empty()) {
     std::ostringstream msg;
-    msg << "No functions found in module '" << moduleName << "'.";
+    msg << "No public functions found in module '" << moduleName << "'.";
     return absl::NotFoundError(msg.str());
   }
 
@@ -572,7 +703,7 @@ absl::Status run(int argc, char** argv) {
   ComPtr<IModule> libraryModule = std::move(libraryModuleOr).value();
 
   absl::StatusOr<std::vector<FunctionInfo>> functionsOr =
-      collectEntryPoints(libraryModule.get(), request.moduleName);
+      collectEntryPoints(libraryModule.get(), request.moduleName, request.modulePath);
   if (!functionsOr.ok()) {
     return functionsOr.status();
   }
