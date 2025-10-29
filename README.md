@@ -22,17 +22,14 @@ usage
 build instructions
 
 ```bash
-git clone https://github.com/shader-slang/slang
+git clone https://github.com/yum-food/slang
 cd slang
-git checkout 8f499fbe9baf68ef880da2ffe4812fbed1e5c1fa
-patch -p1 <../slang.patch
 git submodule update --init --recursive -j 32
 # wait, the previous command takes a while
 mkdir build
 cd build
-# run this part in powershell, from ./slang/build
-cmake.exe ..
-cmake.exe --build . -j 32 --config Release
+powershell.exe cmake.exe ..
+powershell.exe cmake.exe --build . -j 32 --config Release
 # the previous command will take a long fucking time
 # switch back to top level of repo
 cd ../..
