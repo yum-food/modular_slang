@@ -31,7 +31,6 @@ cd build
 powershell.exe cmake.exe ..
 powershell.exe cmake.exe --build . -j 32 --config Release
 # the previous command will take a long fucking time
-# switch back to top level of repo
 cd ../..
 # do this in wsl2 or powershell. Showing wsl2/bash syntax.
 powershell.exe ./build.ps1 && ./dist/modular_slang.exe ./demo.slang

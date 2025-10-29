@@ -1,6 +1,3 @@
-if (Test-Path -Path ./build) {
-  rm -Recurse ./build
-}
 mkdir ./build
 
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64

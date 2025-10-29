@@ -491,7 +491,12 @@ absl::StatusOr<ComPtr<IModule>> loadSlangModule(ISession* session, const std::st
   return module;
 }
 
-absl::StatusOr<std::vector<FunctionInfo>> collectEntryPoints(
+struct EntryPointsResult {
+  std::vector<FunctionInfo> functions;
+  std::unordered_set<std::string> publicFunctions;
+};
+
+absl::StatusOr<EntryPointsResult> collectEntryPoints(
     IModule* module,
     const std::string& moduleName,
     const fs::path& sourcePath) {
@@ -521,7 +526,7 @@ absl::StatusOr<std::vector<FunctionInfo>> collectEntryPoints(
     return absl::NotFoundError(msg.str());
   }
 
-  return functions;
+  return EntryPointsResult{functions, publicFunctions};
 }
 
 absl::StatusOr<ComPtr<ICompileRequest>> createCompileRequest(
@@ -625,6 +630,7 @@ std::string removeNvapiInclude(std::string hlslSource) {
   return hlslSource;
 }
 
+
 std::string applyIncludeGuard(const std::string& hlslSource, const IncludeGuardInfo& includeGuard) {
   if (!includeGuard.present) {
     return hlslSource;
@@ -702,15 +708,15 @@ absl::Status run(int argc, char** argv) {
   }
   ComPtr<IModule> libraryModule = std::move(libraryModuleOr).value();
 
-  absl::StatusOr<std::vector<FunctionInfo>> functionsOr =
+  absl::StatusOr<EntryPointsResult> entryPointsOr =
       collectEntryPoints(libraryModule.get(), request.moduleName, request.modulePath);
-  if (!functionsOr.ok()) {
-    return functionsOr.status();
+  if (!entryPointsOr.ok()) {
+    return entryPointsOr.status();
   }
-  std::vector<FunctionInfo> functions = std::move(functionsOr).value();
+  EntryPointsResult entryPoints = std::move(entryPointsOr).value();
 
   absl::StatusOr<ComPtr<ICompileRequest>> compileRequestOr =
-      createCompileRequest(session.get(), request, targetDesc, functions);
+      createCompileRequest(session.get(), request, targetDesc, entryPoints.functions);
   if (!compileRequestOr.ok()) {
     return compileRequestOr.status();
   }

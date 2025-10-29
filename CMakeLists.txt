@@ -16,7 +16,24 @@ FetchContent_Declare(
     abseil
     URL https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.1.zip
 )
-FetchContent_MakeAvailable(abseil)
+
+# Only populate abseil if it hasn't been built yet
+FetchContent_GetProperties(abseil)
+if(NOT abseil_POPULATED)
+    # Check if the built libraries already exist
+    set(ABSEIL_STATUS_LIB "${CMAKE_BINARY_DIR}/_deps/abseil-build/absl/status/absl_status.lib")
+    set(ABSEIL_STATUSOR_LIB "${CMAKE_BINARY_DIR}/_deps/abseil-build/absl/status/absl_statusor.lib")
+
+    if(NOT EXISTS "${ABSEIL_STATUS_LIB}" OR NOT EXISTS "${ABSEIL_STATUSOR_LIB}")
+        message(STATUS "Abseil libraries not found, building abseil...")
+        FetchContent_MakeAvailable(abseil)
+    else()
+        message(STATUS "Abseil libraries found, skipping rebuild")
+        # Manually populate the source directory without building
+        FetchContent_Populate(abseil)
+        add_subdirectory(${abseil_SOURCE_DIR} ${abseil_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
+endif()
 
 add_executable(modular_slang main.cc)
 set_target_properties(modular_slang PROPERTIES
